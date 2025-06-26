@@ -2,9 +2,10 @@ import os
 import cv2
 import numpy as np
 import threading
+import time
 import requests
-from kivy import kivymd
 from datetime import datetime
+
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.graphics.texture import Texture
@@ -27,16 +28,30 @@ FORM_FIELDS = {
     "time": "entry.32017675",
 }
 
+def get_camera():
+    for cam_id in (0, 1):
+        cap = cv2.VideoCapture(cam_id)
+        if cap.isOpened():
+            print(f"[INFO] Using camera {cam_id}")
+            return cap
+        cap.release()
+    raise RuntimeError("No working camera found (IDs 0 or 1).")
+
 class FaceApp(App):
     def build(self):
-        self.capture = cv2.VideoCapture(1)
+        try:
+            self.capture = get_camera()
+        except RuntimeError as exc:
+            Popup(title="Camera Error", content=Label(text=str(exc)), size_hint=(0.8, 0.3)).open()
+            raise
+
         self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
         self.recognizer, self.label_map = self.train_recognizer()
         self.last_seen_time = {}
 
-        layout = BoxLayout(orientation='vertical')
+        layout = BoxLayout(orientation="vertical")
         self.image = Image()
-        self.button = Button(text='Register New Face', size_hint=(1, 0.1))
+        self.button = Button(text="Register New Face", size_hint=(1, 0.1))
         self.button.bind(on_press=self.register_popup)
 
         layout.add_widget(self.image)
@@ -55,114 +70,109 @@ class FaceApp(App):
 
         if self.recognizer:
             for (x, y, w, h) in faces:
-                roi = cv2.resize(gray[y:y+h, x:x+w], (200, 200))
+                roi = cv2.resize(gray[y:y + h, x:x + w], (200, 200))
                 label_id, confidence = self.recognizer.predict(roi)
 
                 if confidence < 70 and label_id in self.label_map:
                     label = self.label_map[label_id]
                     name, emp_id = label.split("_")
+                    now = time.time()
 
-                    if name and emp_id:
-                        now = time.time()
-                        if label_id not in self.last_seen_time or now - self.last_seen_time[label_id] > RECOGNITION_INTERVAL:
-                            threading.Thread(target=self.play_sound_and_submit, args=(name, emp_id)).start()
-                            self.last_seen_time[label_id] = now
+                    if label_id not in self.last_seen_time or now - self.last_seen_time[label_id] > RECOGNITION_INTERVAL:
+                        threading.Thread(target=self.play_sound_and_submit, args=(name, emp_id), daemon=True).start()
+                        self.last_seen_time[label_id] = now
 
                     cv2.putText(frame, name.capitalize(), (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                    cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                    cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
                 else:
                     cv2.putText(frame, "Unknown", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                    cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 0, 255), 2)
+                    cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
 
         buf = cv2.flip(frame, 0).tobytes()
-        texture = Texture.create(size=(frame.shape[1], frame.shape[0]), colorfmt='bgr')
-        texture.blit_buffer(buf, colorfmt='bgr', bufferfmt='ubyte')
+        texture = Texture.create(size=(frame.shape[1], frame.shape[0]), colorfmt="bgr")
+        texture.blit_buffer(buf, colorfmt="bgr", bufferfmt="ubyte")
         self.image.texture = texture
 
     def train_recognizer(self):
         faces, labels = [], []
         label_map = {}
-        label_counter = 0
         if not os.path.exists(KNOWN_FACES_DIR):
             os.makedirs(KNOWN_FACES_DIR)
 
         for file in os.listdir(KNOWN_FACES_DIR):
-            if file.endswith((".jpg", ".png")):
+            if file.lower().endswith((".jpg", ".png")):
                 try:
-                    name, emp_id, _ = file.split("_")
-                    label = f"{name}_{emp_id}"
-                except:
+                    name, emp_id, _ = file.split("_", 2)
+                except ValueError:
                     continue
-                img_path = os.path.join(KNOWN_FACES_DIR, file)
-                img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+                label = f"{name}_{emp_id}"
+                img = cv2.imread(os.path.join(KNOWN_FACES_DIR, file), cv2.IMREAD_GRAYSCALE)
                 if img is None:
                     continue
                 img = cv2.resize(img, (200, 200))
                 if label not in label_map.values():
-                    label_map[label_counter] = label
-                    label_counter += 1
+                    label_map[len(label_map)] = label
                 faces.append(img)
                 labels.append(list(label_map.values()).index(label))
 
         if len(faces) < 2:
             return None, None
 
+        if not hasattr(cv2, "face"):
+            raise ImportError("cv2.face module not found – install opencv-contrib-python.")
+
         recognizer = cv2.face.LBPHFaceRecognizer_create()
         recognizer.train(faces, np.array(labels))
         return recognizer, label_map
 
-    def register_popup(self, instance):
-        content = BoxLayout(orientation='vertical')
-        name_input = TextInput(hint_text='Full Name')
-        id_input = TextInput(hint_text='Employee ID')
-        submit_btn = Button(text='Capture Faces')
+    def register_popup(self, _instance):
+        box = BoxLayout(orientation="vertical", spacing=8, padding=10)
+        name_in = TextInput(hint_text="Full name", multiline=False)
+        id_in = TextInput(hint_text="Employee ID", multiline=False)
+        btn = Button(text="Capture Faces", size_hint=(1, 0.3))
 
-        content.add_widget(Label(text="Enter Details"))
-        content.add_widget(name_input)
-        content.add_widget(id_input)
-        content.add_widget(submit_btn)
+        box.add_widget(Label(text="Enter details:", size_hint=(1, 0.2)))
+        box.add_widget(name_in)
+        box.add_widget(id_in)
+        box.add_widget(btn)
 
-        popup = Popup(title='Register Face', content=content, size_hint=(0.9, 0.6))
+        pop = Popup(title="Register Face", content=box, size_hint=(0.9, 0.6))
 
-        def submit(instance):
-            name = name_input.text.strip().lower()
-            emp_id = id_input.text.strip().upper()
-            popup.dismiss()
-            threading.Thread(target=self.register_new_face, args=(name, emp_id)).start()
+        def submit(_):
+            name = name_in.text.strip().lower()
+            emp_id = id_in.text.strip().upper()
+            pop.dismiss()
+            if name and emp_id:
+                threading.Thread(target=self.register_new_face, args=(name, emp_id), daemon=True).start()
 
-        submit_btn.bind(on_press=submit)
-        popup.open()
+        btn.bind(on_press=submit)
+        pop.open()
 
     def register_new_face(self, name, emp_id):
-        count = 0
-        for i in range(1, 11):
+        saved = 0
+        for seq in range(1, 11):
             ret, frame = self.capture.read()
             if not ret:
                 continue
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
             for (x, y, w, h) in faces:
-                face = gray[y:y+h, x:x+w]
-                face = cv2.resize(face, (200, 200))
-                filename = f"{name}_{emp_id}_{i}.jpg"
-                cv2.imwrite(os.path.join(KNOWN_FACES_DIR, filename), face)
-                count += 1
+                face = cv2.resize(gray[y:y + h, x:x + w], (200, 200))
+                cv2.imwrite(os.path.join(KNOWN_FACES_DIR, f"{name}_{emp_id}_{seq}.jpg"), face)
+                saved += 1
                 break
-            time.sleep(0.2)
-        print(f"[INFO] Saved {count} images.")
+            time.sleep(0.25)
+
+        print(f"[INFO] Saved {saved} images for {name} ({emp_id}).")
         self.recognizer, self.label_map = self.train_recognizer()
 
     def play_sound_and_submit(self, name, emp_id):
-        sound = SoundLoader.load(AUDIO_FILE)
-        if sound:
-            sound.play()
+        snd = SoundLoader.load(AUDIO_FILE)
+        if snd:
+            snd.play()
         self.send_to_google_form(name, emp_id)
 
     def send_to_google_form(self, name, emp_id):
-        if not name or not emp_id:
-            print("[WARNING] Skipped submission: name or emp_id is empty.")
-            return
-
         now = datetime.now()
         data = {
             FORM_FIELDS["name"]: name,
@@ -171,10 +181,10 @@ class FaceApp(App):
             FORM_FIELDS["time"]: now.strftime("%H:%M:%S"),
         }
         try:
-            requests.post(GOOGLE_FORM_URL, data=data)
+            requests.post(GOOGLE_FORM_URL, data=data, timeout=5)
             print(f"[INFO] Attendance submitted for {name} ({emp_id})")
-        except:
-            print("[ERROR] Submission failed.")
+        except requests.RequestException as err:
+            print(f"[ERROR] Submission failed: {err}")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     FaceApp().run()
