@@ -1,9 +1,9 @@
-name: Build Android APK
+name: Android APK Build
 
 on:
   push:
-    branches: [ "main" ]
-  workflow_dispatch:
+    branches: [ main ]
+  pull_request:
 
 jobs:
   build:
@@ -12,24 +12,17 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          persist-credentials: false
 
-      - name: Cache Buildozer
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.buildozer
-            ~/.android
-          key: buildozer-${{ hashFiles('buildozer.spec') }}
-
-      - name: Build APK using Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        with:
-          command: yes | buildozer android debug
+      - name: Build APK with Buildozer Docker
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/home/user/app \
+            -w /home/user/app \
+            kivy/buildozer:stable \
+            buildozer android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: faceapp-debug-apk
+          name: faceapp-debug
           path: bin/*.apk
