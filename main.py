@@ -29,7 +29,7 @@ FORM_FIELDS = {
 
 class FaceApp(App):
     def build(self):
-        self.capture = cv2.VideoCapture(0)
+        self.capture = cv2.VideoCapture(1)
         self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
         self.recognizer, self.label_map = self.train_recognizer()
         self.last_seen_time = {}
