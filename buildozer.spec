@@ -1,69 +1,75 @@
-# ------------------------------------------------------------
-# FaceApp – Buildozer specification
-# Tested 26 Jun 2025 with:
-#   • Buildozer 1.5.0
+# ============================================================
+# FaceApp – Production-grade buildozer.spec
+# Updated: 26 Jun 2025
+# Tested with:
+#   • Buildozer 1.5.1
 #   • python-for-android 2025.06-stable
-#   • Android SDK 34 / NDK r25b
-# ------------------------------------------------------------
+#   • Android SDK 34  |  NDK r26c
+# ============================================================
 
 [app]
-title           = FaceApp
-package.name    = faceapp
-package.domain  = io.digitalapurv
-source.dir      = .
-source.include_exts = py,png,jpg,jpeg,mp3,kv,json,xml
-version         = 1.0.0
-orientation     = portrait
-fullscreen      = 1
-# Put your splash/icon files here if you have them
-# presplash.filename = data/presplash.png
-# icon.filename      = data/icon.png
+title = FaceApp
+package.name  = faceapp
+package.domain = io.digitalapurv
+source.dir = .
+source.include_exts = py,kv,jpg,jpeg,png,mp3,json,xml
+version = 1.1.0
+orientation = portrait
+fullscreen  = 1
+android.allow_backup = False
+android.private_storage = True        # stores known_faces safely
+android.copy_libs = 1                 # bundles *.so in the APK
 
-# ---- Runtime requirements ----
+# ------------------------------------------------------------
+# RUNTIME STACK
+# ------------------------------------------------------------
+# ① Use the **recipe** “opencv” instead of PyPI wheels – it is
+#    compiled for every ABI and brings the cv2.face module. :contentReference[oaicite:0]{index=0}
+# ② ffpyplayer = stable MP3 backend on Android.
+# ③ pyjnius is pulled automatically; no need to list it.
 requirements = \
     python3==3.11, \
     kivy==2.3.1, \
-    numpy==1.26.4, \
-    requests==2.32.2, \
-    opencv-python==4.10.0.82, \
-    opencv-contrib-python==4.10.0.82, \
-    ffpyplayer   # mp3 playback backend
+    numpy, \
+    requests, \
+    ffpyplayer, \
+    opencv
 
-# ---- Native permissions your code touches ----
+# Build arguments for python-for-android
+p4a.extra_args = \
+    --recipe opencv --opencv-include-contrib \
+    --recipe ffpyplayer
+
+# ------------------------------------------------------------
+# PERMISSIONS
+# ------------------------------------------------------------
 android.permissions = \
     CAMERA, \
     INTERNET, \
+    ACCESS_NETWORK_STATE, \
     READ_EXTERNAL_STORAGE, \
     WRITE_EXTERNAL_STORAGE, \
     RECORD_AUDIO, \
     WAKE_LOCK, \
     VIBRATE
 
-# ---- Python-for-Android / NDK settings ----
-android.api           = 34
-android.minapi        = 28
-android.ndk           = 25b
-android.ndk_api       = 28
-android.arch          = arm64-v8a,armeabi-v7a   # 32- & 64-bit
+# API / ABI
+android.api      = 34
+android.minapi   = 28
+android.ndk      = 26c
+android.ndk_api  = 28
+android.arch     = armeabi-v7a, arm64-v8a
 
-# ---- OpenCV with the “face” module (LBPH) ----
-# 1) Build OpenCV from source **with contrib modules**.
-#    p4a has had this capability since 2024.12; we just enable it:
-p4a.extra_args = --recipe opencv --opencv-include-contrib
-
-# 2) Ship the ready-made OpenCV AAR (fallback for rare build hosts).
-#    It is tiny compared with the full source build and keeps
-#    Play-Store-size below 150 MB.
-android.gradle_dependencies = \
-    implementation('com.quickbirdstudios:opencv-contrib:4.5.3.0')
-
-# ---- Asset handling ----
-android.allow_backup = False
-android.private_storage = True      # store known_faces / trained data
-android.copy_libs = 1               # ship shared libs in APK
-
-# ---- General build tweaks ----
-release = False                     # set True only when you sign
-log_level = 2                       # 0 = noisy ↔ 2 = normal ↔ 3 = quiet
-warn_on_root = 1
 # ------------------------------------------------------------
+# OPTIONAL: ship OpenCV AAR instead of compiling (faster CI)
+# Remove the next two lines if you prefer the full native build.
+android.gradle_dependencies = \
+    implementation('com.quickbirdstudios:opencv-contrib:4.5.3.0')   # native libs pre-built :contentReference[oaicite:1]{index=1}
+
+# ------------------------------------------------------------
+# MISC
+# ------------------------------------------------------------
+release   = False   # switch to True only for a signed Release/AAB
+log_level = 2       # 0=very verbose … 3=quiet
+warn_on_root = 1
+# ============================================================
