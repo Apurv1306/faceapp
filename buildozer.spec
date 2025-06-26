@@ -1,9 +1,9 @@
 [app]
-title = Face Recognition App
+title = Face Recognition
 package.name = faceapp
-package.domain = org.apurv
+package.domain = org.apurv.face
 source.dir = .
-source.include_exts = py,png,jpg,kv,mp3
+source.include_exts = py,mp3,jpg,png
 version = 1.0
 requirements = python3,kivy,opencv-contrib-python,numpy,requests
 orientation = portrait
@@ -14,7 +14,6 @@ android.minapi = 21
 android.ndk = 25b
 android.ndk_api = 21
 android.arch = armeabi-v7a
-# To support camera and sound playback
 android.hardware = camera, camera.autofocus
 
 [buildozer]
