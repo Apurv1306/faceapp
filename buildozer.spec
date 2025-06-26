@@ -3,24 +3,38 @@ title = FaceApp
 package.name = faceapp
 package.domain = org.faceapp
 source.dir = .
-source.include_exts = py,png,jpg,kv,mp3
+source.include_exts = py,kv,png,jpg,jpeg,mp3
 version = 1.0
-requirements = python3,kivy,opencv-contrib-python,numpy,pillow,requests
+
+# Core dependencies
+requirements = python3,kivy,ffi,pyjnius,numpy,requests,pillow,opencv
+
+# OpenCV with face module + image-handling library for texture safety
+# `opencv` here refers to the contrib recipe (see p4a.extra_args)
 orientation = portrait
 fullscreen = 1
 
-android.permissions = CAMERA,INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,RECORD_AUDIO
+# Permissions required at runtime
+android.permissions = CAMERA,INTERNET,RECORD_AUDIO,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
+
+# Supported ABIs
 android.archs = armeabi-v7a,arm64-v8a
+
+# Use latest Android platform
 android.api = 34
 android.minapi = 28
-android.ndk = 26b
+
+# Use a modern NDK with face module support
+android.ndk = 25b
 android.accept_sdk_license = True
-log_level = 2
-android.allow_backup = False
+
+# Use contrib modules to include cv2.face
+p4a.extra_args = --recipe opencv --opencv-include-contrib
+
+# Optimize package size and stability
 android.copy_libs = 1
+android.allow_backup = False
 
-# If packaged via Docker, no need for sdk paths; else:
-# android.sdk_path = /path/to/android/sdk
-# android.ndk_path = /path/to/android/ndk
-
- 
+# Build verbosity
+log_level = 2
+warn_on_root = 1
