@@ -23,7 +23,7 @@ android.api = 34
 android.minapi = 28
 
 # Use compatible NDK
-android.ndk = 25b
+android.ndk = 23b
 android.accept_sdk_license = True
 
 # Include OpenCV contrib for cv2.face
