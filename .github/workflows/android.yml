@@ -1,35 +1,99 @@
-name: Build Android APK
+name: Build Kivy Android APK
 
 on:
   push:
-    branches: [ "main" ]
-  workflow_dispatch:
+    branches:
+      - main # Or your main branch name, e.g., master
 
 jobs:
-  build:
+  build-apk:
     runs-on: ubuntu-latest
+    env:
+      # Explicitly set Android SDK environment variables to where setup-android action installs it
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-      - name: Cache Buildozer
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.buildozer
-            ~/.android
-          key: buildozer-${{ hashFiles('buildozer.spec') }}
+    - name: Clean Buildozer environment
+      # Remove the .buildozer directory to force a fresh build and re-read of buildozer.spec
+      run: |
+        rm -rf .buildozer
+        echo "Cleaned .buildozer directory."
 
-      - name: Build APK using Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        with:
-          command: yes | buildozer android debug
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9' # Kivy/Buildozer often work well with Python 3.9 or 3.10
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: faceapp-debug-apk
-          path: bin/*.apk
+    - name: Install System Build Tools (Ant, Autotools, Build Essentials, Libtool, Unzip, Pkg-Config, Automake, CMake, M4)
+      # Install these before Buildozer starts its operations to ensure they are available
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ant autotools-dev build-essential libtool unzip pkg-config automake cmake m4
+
+    - name: Install Python Dependencies (Buildozer, Cython, Setuptools, Python-for-Android)
+      run: |
+        pip install buildozer
+        pip install cython
+        pip install --upgrade setuptools # Ensure setuptools is up-to-date
+        pip install --upgrade python-for-android # Upgrade P4A to the latest version
+
+    - name: Set up Android SDK and NDK (using dedicated action)
+      # This action handles the installation of Android SDK components,
+      # including the NDK and platform tools, and accepts licenses.
+      uses: android-actions/setup-android@v2
+      with:
+        api-level: 34 # Target Android API 34
+        build-tools: 34.0.0 # Match API 34
+        ndk: 25.2.9519653 # Explicitly use NDK 25.2.9519653 (equivalent to 25b)
+
+    - name: Create symlinks for deprecated SDK tools paths
+      # Buildozer often looks for sdkmanager, aidl, and zipalign in the old 'tools/bin' path.
+      # This step creates symlinks from the expected old locations to the actual new locations.
+      run: |
+        mkdir -p "${{ env.ANDROID_SDK_ROOT }}/tools/bin"
+        ln -sf "${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager" "${{ env.ANDROID_SDK_ROOT }}/tools/bin/sdkmanager"
+        ln -sf "${{ env.ANDROID_SDK_ROOT }}/build-tools/34.0.0/aidl" "${{ env.ANDROID_SDK_ROOT }}/tools/bin/aidl"
+        ln -sf "${{ env.ANDROID_SDK_ROOT }}/build-tools/34.0.0/zipalign" "${{ env.ANDROID_SDK_ROOT }}/tools/bin/zipalign"
+        echo "Symlinks created for sdkmanager, aidl, and zipalign."
+
+    - name: Configure Autoreconf Environment
+      # Explicitly set ACLOCAL_PATH to ensure libtool macros are found.
+      run: |
+        export ACLOCAL_PATH="/usr/share/aclocal"
+        # Attempt to run libtoolize --force --copy if it helps with macro issues
+        libtoolize --automake --force --copy || true # Use || true to prevent job failure if it's not needed or fails benignly
+        autoreconf --install --force || true # Re-run autoreconf to ensure everything is set up
+
+    - name: Check Network Connectivity (Diagnostic)
+      run: |
+        echo "Attempting to curl Google to check network connectivity..."
+        curl -v https://www.google.com
+
+    - name: Build Android APK
+      run: |
+        # Explicitly set ANDROID_NDK_HOME and ANDROID_NDK_ROOT to the exact path of NDK 25.2.9519653.
+        export ANDROID_NDK_HOME="${{ env.ANDROID_SDK_ROOT }}/ndk/25.2.9519653"
+        export ANDROID_NDK_ROOT="${{ env.ANDROID_SDK_ROOT }}/ndk/25.2.9519653"
+        
+        # CRITICAL: Explicitly override ANDROIDMINAPI and ANDROIDAPI directly before buildozer.
+        # This is the most aggressive way to ensure P4A uses these values.
+        export ANDROIDMINAPI=28
+        export ANDROIDAPI=34
+        
+        # Explicitly pass android-api and ndk-api to ensure python-for-android uses the correct versions.
+        # Also pass --p4a-args to directly control P4A's NDK API and verbosity.
+        buildozer android debug -v \
+          --android-api=34 \
+          --android-ndk-api=28 \
+          --log-level 2 \
+          --p4a-args="--ndk-api=28 --verbose"
+
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: FaceAppAttendance-APK
+        path: bin/*.apk
