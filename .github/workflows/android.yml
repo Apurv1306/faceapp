@@ -1,9 +1,8 @@
-
 name: Build Android APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
@@ -13,16 +12,24 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Cache Buildozer
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            ~/.android
+          key: buildozer-${{ hashFiles('buildozer.spec') }}
 
       - name: Build APK using Buildozer
         uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
         with:
-          command: buildozer android debug
-          buildozer_version: stable
+          command: yes | buildozer android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: myapp-debug-apk
-          path: ${{ steps.buildozer.outputs.filename }}
+          name: faceapp-debug-apk
+          path: bin/*.apk
