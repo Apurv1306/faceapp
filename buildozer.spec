@@ -41,7 +41,7 @@ version = 0.1
 # - requests: Used for submitting data to Google Forms.
 # - pillow: A common image processing library often implicitly required by Kivy and OpenCV for certain image formats/operations.
 # This is highly likely to fail or be very difficult to build for Android
-requirements = python3, kivy==2.3.0, opencv-python, numpy, requests, pillow, smtplib
+requirements = python3.1.1, kivy==2.3.0, opencv-python, numpy, requests, pillow, smtplib
 # (str) Source code where the main.py lives
 source.dir = .
 
