@@ -41,7 +41,7 @@ version = 0.1
 # - requests: Used for submitting data to Google Forms.
 # - pillow: A common image processing library often implicitly required by Kivy and OpenCV for certain image formats/operations.
 # This is highly likely to fail or be very difficult to build for Android
-requirements = python3, kivy==2.3.0, opencv-python, numpy, requests, pillow, pyopenssl, certifi, smtplib
+requirements = python3, kivy==2.3.0, opencv-python, numpy, requests, pillow, smtplib
 # (str) Source code where the main.py lives
 source.dir = .
 
@@ -64,8 +64,7 @@ extensions =
 
 # (int) The Android SDK version to use. Setting to 33 for better stability with python-for-android.
 android.api = 33
-# (in buildozer.spec)
-source.include_exts = py, png, jpg, kv, json, cert
+
 # (int) The Android NDK version to use. 25b is a stable choice compatible with many APIs.
 android.ndk = 25b
 
