@@ -64,7 +64,8 @@ extensions =
 
 # (int) The Android SDK version to use. Setting to 33 for better stability with python-for-android.
 android.api = 33
-
+# (in buildozer.spec)
+source.include_exts = py, png, jpg, kv, json, cert
 # (int) The Android NDK version to use. 25b is a stable choice compatible with many APIs.
 android.ndk = 25b
 
