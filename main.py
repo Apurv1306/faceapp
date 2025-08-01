@@ -1,28 +1,23 @@
+import os
 import glob
 import json
-import os
 import random
 import smtplib
 import threading
 import time
-from datetime import datetime, date, timedelta
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.image import MIMEImage
-from email.mime.application import MIMEApplication
-from pathlib import Path
-from typing import Any, Dict, Optional, Tuple, List
-
 import base64
+import asyncio
+import io
+from datetime import datetime, date, timedelta
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
 import cv2
 import numpy as np
 import requests
-import asyncio
+import pandas as pd
 import edge_tts
 import pygame
-import io
-
-import pandas as pd
 from fpdf import FPDF
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -32,18 +27,29 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
-from kivy.uix.image import Image
 from kivy.uix.camera import Camera
 from kivy.clock import Clock, mainthread
 from kivy.properties import StringProperty, BooleanProperty
 from kivy.graphics.texture import Texture
 
 # --- Configuration Constants ---
-SAMPLES_PER_USER: int = 10 # This constant is not used, but kept for consistency
+SAMPLES_PER_USER: int = 10  # This constant is not used, but kept for consistency
 FRAME_REDUCE_FACTOR: float = 0.5
 RECOGNITION_INTERVAL: int = 3 * 60  # 3 minutes cooldown
 
-HAAR_CASCADE_PATH: str = "./haarcascade_frontalface_default.xml" # Prefer local path first
+# Path to Haar cascade in data/
+HAAR_CASCADE_PATH = os.path.join(os.path.dirname(__file__), "haarcascade_frontalface_default.xml")
+
+# Replace this with android.storage.app_storage_path() when on Android
+try:
+    from android.storage import app_storage_path
+    BASE_DIR = app_storage_path()
+except ImportError:
+    BASE_DIR = os.getcwd()
+
+# Ensure known_faces folder is under app storage
+KNOWN_FACES_DIR = os.path.join(BASE_DIR, "known_faces")
+os.makedirs(KNOWN_FACES_DIR, exist_ok=True)
 
 # Google Sheet URLs and form URLs (update with your actual URLs)
 GOOGLE_SHEET_CSV_URL = (
@@ -192,7 +198,7 @@ class EdgeTTSHelper:
 class FaceAppBackend:
     def __init__(self, ui_instance=None):
         self.ui_instance = ui_instance
-        self.known_faces_dir: str = str(Path("./known_faces"))
+        self.known_faces_dir: str = KNOWN_FACES_DIR
         ensure_dir(self.known_faces_dir)
         Logger(f"[INFO] Known faces directory set to: {self.known_faces_dir}")
 
@@ -1049,7 +1055,7 @@ class FaceAppUI(BoxLayout):
 
         # Left panel: Camera and Status
         camera_panel = BoxLayout(orientation='vertical', size_hint_x=0.7)
-        self.camera = Camera(play=True, resolution=(640, 480))
+        self.camera = Camera(play=True, index=1, resolution=(640, 480))
         camera_panel.add_widget(self.camera)
         
         self.status_label = Label(text=self.recognition_status, size_hint_y=0.1, font_size='20sp')
@@ -1258,6 +1264,8 @@ class FaceApp(App):
         return FaceAppUI()
 
 if __name__ == "__main__":
+    from kivy import Config
+    Config.set("graphics", "multisamples", "0")
     # Ensure necessary data directories exist before starting
-    ensure_dir("./known_faces")
+    ensure_dir(KNOWN_FACES_DIR)
     FaceApp().run()
