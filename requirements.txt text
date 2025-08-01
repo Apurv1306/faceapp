@@ -1,0 +1,9 @@
+kivy
+opencv-python
+requests
+pandas
+fpdf
+plyer
+edge-tts
+pygame
+apscheduler
